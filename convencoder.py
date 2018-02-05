@@ -28,7 +28,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 @ck.option(
     '--is-train', help="Training mode", is_flag=True, default=False)
 def main(batch_size, epochs, model_file, is_train):
-
+    build_model()
     train_data, test_data = load_data()
     if is_train:
         train(train_data, batch_size, epochs, model_file)
@@ -85,27 +85,13 @@ def load_data(split=0.8):
 def build_model():
     input_seq = Input(shape=(MAXLEN * 21,))
     x = Reshape((MAXLEN, 21))(input_seq)
-    x = Conv1D(32, 7, activation='relu', padding='same')(x)
+    x = Conv1D(320, 7, activation='relu', padding='same')(x)
     print(x.get_shape())
     x = MaxPooling1D(4, padding='same')(x)
     print(x.get_shape())
-    x = Conv1D(16, 7, activation='relu', padding='same')(x)
+    x = Conv1D(160, 7, activation='relu', padding='same')(x)
     print(x.get_shape())
-    x = MaxPooling1D(4, padding='same')(x)
-    print(x.get_shape())
-    x = Conv1D(8, 7, activation='relu', padding='same')(x)
-    print(x.get_shape())
-    encoded = MaxPooling1D(4, padding='same')(x)
-    print(encoded.get_shape())
-    # at this point the representation is (4, 4, 8) i.e. 128-dimensional
-    x = Conv1D(8, 7, activation='relu', padding='same')(encoded)
-    x = UpSampling1D(4)(x)
-    print(x.get_shape())
-    x = Conv1D(16, 7, activation='relu', padding='same')(x)
-    print(x.get_shape())
-    x = UpSampling1D(4)(x)
-    print(x.get_shape())
-    x = Conv1D(32, 7, activation='relu', padding='same')(x)
+    x = Conv1D(320, 7, activation='relu', padding='same')(x)
     print(x.get_shape())
     x = UpSampling1D(4)(x)
     print(x.get_shape())
@@ -115,7 +101,7 @@ def build_model():
     decoded = Reshape((MAXLEN * 21,))(x)
     
     autoencoder = Model(input_seq, decoded)
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    autoencoder.compile(optimizer='SGD', loss='binary_crossentropy')
     autoencoder.summary()
     return autoencoder
 
@@ -135,7 +121,7 @@ def train(data, batch_size, epochs, model_file, validation_split=0.8):
     checkpointer = ModelCheckpoint(
         filepath=model_file,
         verbose=1, save_best_only=True)
-    earlystopper = EarlyStopping(monitor='val_loss', patience=10, verbose=1)
+    earlystopper = EarlyStopping(monitor='val_loss', patience=100, verbose=1)
 
     model = build_model()
     model.fit_generator(
@@ -158,7 +144,7 @@ def test(data, batch_size, model_file):
     preds = np.argmax(preds, axis=2)
     real = data.toarray().reshape(data.shape[0], MAXLEN, 21)
     real = np.argmax(real, axis=2)
-    for i in range(100):
+    for i in range(10):
         print(preds[i].tolist())
         print(real[i].tolist())
         c = 0
