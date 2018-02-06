@@ -164,16 +164,17 @@ def test(data, batch_size, model_file):
     real = data.toarray().reshape(data.shape[0], MAXLEN, 21)
     real = np.argmax(real, axis=2)
     for i in range(10):
-        print(preds[i].tolist())
-        print(real[i].tolist())
         c = 0
         l = 0
+        lp = 0
         for j in range(len(real[i])):
             if real[i, j] != 0 and real[i, j] == preds[i, j]:
                 c += 1
             elif l == 0 and real[i, j] == 0:
                 l = j
-        print('Match %d, Length %d' % (c, l))
+            if lp == 0 and preds[i, j] == 0:
+                lp = j
+        print('Match %d, Length %d, Length pred %d' % (c, l, lp))
     
 
 
