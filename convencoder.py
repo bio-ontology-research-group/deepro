@@ -36,17 +36,19 @@ K.set_session(sess)
     help='Batch size for training and testing', default='model.h5')
 @ck.option(
     '--is-train', help="Training mode", is_flag=True, default=False)
-def main(batch_size, epochs, model_file, is_train):
+@ck.option(
+    '--data-file', help="Pandas pickled data file", default='data/data.pkl')
+def main(batch_size, epochs, model_file, is_train, data_file):
     build_model()
-    train_data, test_data = load_data()
+    train_data, test_data = load_data(data_file)
     if is_train:
         train(train_data, batch_size, epochs, model_file)
 
     test(test_data, batch_size, model_file)
 
 
-def load_data(split=0.8):
-    df = pd.read_pickle('data/data.pkl')
+def load_data(data_file, split=0.8):
+    df = pd.read_pickle(data_file)
     df = df[df['indexes'].map(lambda x: len(x)) <= MAXLEN]
     n = len(df)
     print('Data size: {}'.format(n))
