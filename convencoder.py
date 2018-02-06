@@ -11,7 +11,9 @@ import math
 from utils import DataGenerator
 from scipy import sparse
 
-from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Reshape, Input
+from keras.layers import (
+    Conv1D, MaxPooling1D, UpSampling1D, Reshape, Input,
+    Dense)
 from keras.models import load_model, Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import backend as K
