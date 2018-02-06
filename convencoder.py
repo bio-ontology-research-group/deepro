@@ -14,6 +14,13 @@ from scipy import sparse
 from keras.layers import Conv1D, MaxPooling1D, UpSampling1D, Reshape, Input
 from keras.models import load_model, Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras import backend as K
+import tensorflow as tf
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth=True
+sess = tf.Session(config=config)
+K.set_session(sess)
 
 @ck.command()
 @ck.option(
@@ -101,7 +108,7 @@ def build_model():
     decoded = Reshape((MAXLEN * 21,))(x)
     
     autoencoder = Model(input_seq, decoded)
-    autoencoder.compile(optimizer='SGD', loss='binary_crossentropy')
+    autoencoder.compile(optimizer='rmsprop', loss='binary_crossentropy')
     autoencoder.summary()
     return autoencoder
 
