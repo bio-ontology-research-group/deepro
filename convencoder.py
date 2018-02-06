@@ -113,6 +113,18 @@ def build_model():
     return autoencoder
 
 
+def build_model_dense():
+    input_seq = Input(shape=(MAXLEN * 21,))
+    x = Dense(8000, activation='relu')(input_seq)
+    x = Dense(4000, activation='relu')(x)
+    x = Dense(8000, activation='relu')(x)
+    decoded = Dense(MAXLEN * 21, activation='relu')(x)
+    autoencoder = Model(input_seq, decoded)
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    autoencoder.summary()
+    return autoencoder
+
+
 def train(data, batch_size, epochs, model_file, validation_split=0.8):
     index = np.arange(data.shape[0])
     train_n = int(data.shape[0] * validation_split)
@@ -130,7 +142,7 @@ def train(data, batch_size, epochs, model_file, validation_split=0.8):
         verbose=1, save_best_only=True)
     earlystopper = EarlyStopping(monitor='val_loss', patience=100, verbose=1)
 
-    model = build_model()
+    model = build_model_dense()
     model.fit_generator(
         train_generator,
         steps_per_epoch=steps, epochs=epochs,
