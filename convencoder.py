@@ -13,7 +13,7 @@ from scipy import sparse
 
 from keras.layers import (
     Conv1D, MaxPooling1D, UpSampling1D, Reshape, Input,
-    Dense)
+    Dense, Embedding, Masking, LSTM, RepeatVector)
 from keras.models import load_model, Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import backend as K
@@ -39,7 +39,6 @@ K.set_session(sess)
 @ck.option(
     '--data-file', help="Pandas pickled data file", default='data/data.pkl')
 def main(batch_size, epochs, model_file, is_train, data_file):
-    build_model()
     train_data, test_data = load_data(data_file)
     if is_train:
         train(train_data, batch_size, epochs, model_file)
@@ -65,6 +64,24 @@ def load_data(data_file, split=0.8):
         return values
 
     def get_values(df):
+        n = len(df)
+        rows = []
+        cols = []
+        data = []
+        for i, row in enumerate(df.itertuples()):
+            for ind, j in enumerate(row.indexes):
+                rows.append(i)
+                cols.append(ind)
+                data.append(j / 20.0)
+        
+        data = sparse.csr_matrix((data, (rows, cols)), shape=(n, MAXLEN))
+        index = np.arange(n)
+        np.random.seed(seed=0)
+        np.random.shuffle(index)
+        print(data[0, :].toarray())
+        return data[index, :]
+
+    def get_values_one_hot(df):
         n = len(df)
         rows = []
         cols = []
@@ -117,6 +134,21 @@ def build_model():
     return autoencoder
 
 
+def build_model_lstm():
+    input_seq = Input(shape=(MAXLEN,))
+    x = Reshape((MAXLEN, 1))(input_seq)
+    x = Masking(mask_value=0)(x)
+    x = LSTM(256)(x)
+    x = RepeatVector(MAXLEN)(x)
+    x = LSTM(1, return_sequences=True)(x)
+    
+    decoded = Reshape((MAXLEN,))(x)
+    autoencoder = Model(input_seq, decoded)
+    autoencoder.compile(optimizer='rmsprop', loss='binary_crossentropy')
+    autoencoder.summary()
+    return autoencoder
+
+
 def build_model_dense():
     input_seq = Input(shape=(MAXLEN * 21,))
     x = Dense(8000, activation='relu')(input_seq)
@@ -146,7 +178,7 @@ def train(data, batch_size, epochs, model_file, validation_split=0.8):
         verbose=1, save_best_only=True)
     earlystopper = EarlyStopping(monitor='val_loss', patience=100, verbose=1)
 
-    model = build_model_dense()
+    model = build_model_lstm()
     model.fit_generator(
         train_generator,
         steps_per_epoch=steps, epochs=epochs,
@@ -163,10 +195,12 @@ def test(data, batch_size, model_file):
     print('Test loss %f' % (loss, ))
 
     preds = model.predict_generator(generator, steps=steps)
-    preds = preds.reshape(data.shape[0], MAXLEN, 21)
-    preds = np.argmax(preds, axis=2)
-    real = data.toarray().reshape(data.shape[0], MAXLEN, 21)
-    real = np.argmax(real, axis=2)
+    # preds = preds.reshape(data.shape[0], MAXLEN, 21)
+    # preds = np.argmax(preds, axis=2)
+    real = data.toarray().reshape(data.shape[0], MAXLEN)
+    # real = np.argmax(real, axis=2)
+    preds = (preds * 20).astype(np.int32)
+    real = (real * 20).astype(np.int32)
     for i in range(10):
         c = 0
         l = 0
