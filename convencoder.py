@@ -17,12 +17,15 @@ from keras.layers import (
 from keras.models import load_model, Model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras import backend as K
+from keras.optimizers import SGD
 import tensorflow as tf
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth=True
 sess = tf.Session(config=config)
 K.set_session(sess)
+
+MAXLEN = 1600
 
 @ck.command()
 @ck.option(
@@ -48,7 +51,7 @@ def main(batch_size, epochs, model_file, is_train, data_file):
 
 def load_data(data_file, split=0.8):
     df = pd.read_pickle(data_file)
-    df = df[df['indexes'].map(lambda x: len(x)) <= MAXLEN]
+    # df = df[df['indexes'].map(lambda x: len(x)) <= MAXLEN]
     n = len(df)
     print('Data size: {}'.format(n))
     index = np.arange(n)
@@ -113,13 +116,13 @@ def load_data(data_file, split=0.8):
 def build_model():
     input_seq = Input(shape=(MAXLEN * 21,))
     x = Reshape((MAXLEN, 21))(input_seq)
-    x = Conv1D(320, 7, activation='relu', padding='same')(x)
+    x = Conv1D(320, 7, padding='same')(x)
     print(x.get_shape())
     x = MaxPooling1D(4, padding='same')(x)
     print(x.get_shape())
-    x = Conv1D(160, 7, activation='relu', padding='same')(x)
+    x = Conv1D(160, 7, padding='same')(x)
     print(x.get_shape())
-    x = Conv1D(320, 7, activation='relu', padding='same')(x)
+    x = Conv1D(320, 7, padding='same')(x)
     print(x.get_shape())
     x = UpSampling1D(4)(x)
     print(x.get_shape())
@@ -129,7 +132,7 @@ def build_model():
     decoded = Reshape((MAXLEN * 21,))(x)
     
     autoencoder = Model(input_seq, decoded)
-    autoencoder.compile(optimizer='rmsprop', loss='binary_crossentropy')
+    autoencoder.compile(optimizer='sgd', loss='mean_squared_error')
     autoencoder.summary()
     return autoencoder
 
@@ -150,13 +153,16 @@ def build_model_lstm():
 
 
 def build_model_dense():
-    input_seq = Input(shape=(MAXLEN * 21,))
-    x = Dense(8000, activation='relu')(input_seq)
-    x = Dense(4000, activation='relu')(x)
-    x = Dense(8000, activation='relu')(x)
-    decoded = Dense(MAXLEN * 21, activation='relu')(x)
+    input_seq = Input(shape=(MAXLEN,))
+    x = Dense(1600)(input_seq)
+    x = Dense(1200)(x)
+    encoded = Dense(800)(x)
+    x = Dense(1200)(encoded)
+    x = Dense(1600)(x)
+    decoded = Dense(MAXLEN, activation='sigmoid')(x)
     autoencoder = Model(input_seq, decoded)
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+    optimizer = SGD(lr=0.1)
+    autoencoder.compile(optimizer='sgd', loss='mean_squared_error')
     autoencoder.summary()
     return autoencoder
 
@@ -178,7 +184,7 @@ def train(data, batch_size, epochs, model_file, validation_split=0.8):
         verbose=1, save_best_only=True)
     earlystopper = EarlyStopping(monitor='val_loss', patience=100, verbose=1)
 
-    model = build_model_lstm()
+    model = build_model()
     model.fit_generator(
         train_generator,
         steps_per_epoch=steps, epochs=epochs,
@@ -188,6 +194,7 @@ def train(data, batch_size, epochs, model_file, validation_split=0.8):
 
 def test(data, batch_size, model_file):
     model = load_model(model_file)
+    print(np.round(model.layers[1].get_weights()[0], 3))
     generator = DataGenerator(batch_size)
     generator.fit(data, data)
     steps = int(math.ceil(data.shape[0] / batch_size))
@@ -197,14 +204,16 @@ def test(data, batch_size, model_file):
     preds = model.predict_generator(generator, steps=steps)
     # preds = preds.reshape(data.shape[0], MAXLEN, 21)
     # preds = np.argmax(preds, axis=2)
-    real = data.toarray().reshape(data.shape[0], MAXLEN)
+    real = data.toarray() #.reshape(data.shape[0], MAXLEN)
     # real = np.argmax(real, axis=2)
-    preds = (preds * 20).astype(np.int32)
-    real = (real * 20).astype(np.int32)
+    preds = np.round(preds * 20).astype(np.int32)
+    real = np.round(real * 20).astype(np.int32)
     for i in range(10):
         c = 0
         l = 0
         lp = 0
+        print(preds[i])
+        print(real[i])
         for j in range(len(real[i])):
             if real[i, j] != 0 and real[i, j] == preds[i, j]:
                 c += 1
